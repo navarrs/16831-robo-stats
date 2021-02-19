@@ -28,8 +28,7 @@ class RandomizedWeightedMajorityAlgorithm(WeightedMajorityAlgorithm):
         Prediction rule. In the case of the Randomized Weighted Majority 
         Algorithm it computes a multinomial. 
         """
-        phi = np.sum(self._weights)
-        w = self._weights / phi
+        w = self._weights / np.sum(self._weights)
         expert = np.random.multinomial(1, w)
         return self._x[np.where(expert == 1)]
         

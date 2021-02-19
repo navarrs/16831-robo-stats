@@ -5,10 +5,8 @@ from wma import WeightedMajorityAlgorithm
 from rwma import RandomizedWeightedMajorityAlgorithm
 
 from world import (
-    StochasticWorld,
-    OddLoseExpert,
-    OptimisticExpert,
-    NegativeExpert
+    StochasticWorld, DeterministicWorld, AdversarialWorld,
+    OddLoseExpert, OptimisticExpert, NegativeExpert
 )
 
 SUPPORTED_WORLDS = ["stochastic", "deterministic", "adversarial"]
@@ -20,11 +18,11 @@ def plot(x, y1, y1_label, y2=None, y2_label=None,
     colors = ['red', 'green', 'blue', 'cyan']
     
     for n in range(len(y1[1])):
-        plt.plot(x, y1[:, n], colors[n], label=y1_label[n])
+        plt.plot(x, y1[:, n], color=colors[n], label=y1_label[n])
     
     if not y2 is None:
         for n in range(len(y2[1])):
-            plt.plot(x, y2[:, n], colors[-1+n], label=y2_label[n])
+            plt.plot(x, y2[:, n], color=colors[-1+n], label=y2_label[n])
     
     plt.xlabel(x_axis)
     plt.ylabel(y_axis)
@@ -52,9 +50,9 @@ def run(args):
     if args.world == "stochastic":
         world = StochasticWorld(args.world, labels=[-1, 1])
     elif args.world == "deterministic":
-        pass
-    else:
-        pass
+        world = DeterministicWorld(args.world)
+    elif args.world == "adversarial":
+        world = AdversarialWorld(args.world, strategy=args.algo)
     
     if args.algo == "wma":
         algo = WeightedMajorityAlgorithm(H, world, args.T, args.eta)

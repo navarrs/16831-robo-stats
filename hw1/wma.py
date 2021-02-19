@@ -54,7 +54,8 @@ class WeightedMajorityAlgorithm(object):
         """
         Receives true label from the world
         """
-        return self._world.give_label()
+        # note: if using stochastic, the expert advice is not used by the world
+        return self._world.give_label(self._x)
 
     def pred_function(self, value: float) -> int:
         """
