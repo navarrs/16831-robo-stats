@@ -126,11 +126,19 @@ class DeterministicWorld(World):
                    expert_weights: np.array = None
         ) -> int:
         """ Uses a deterministic rule to produce a label. """
-        return self.rule_opposite(expert_advice)
-
+        return self.rule_counter(expert_advice)
+    
+    def rule_counter(self, expert_advice):
+        label = -1 if self._counter % 4 == 0 else 1
+        self._counter += 1
+        return label
+    
     def rule_opposite(self, expert_advice):
         """ Produces opposite label to that produced by the OddLose expert. """
-        return -1 if expert_advice[-1] == 1 else -1
+        return -1 if expert_advice[-1] == 1 else 1
+    
+    def set_counter(self):
+        self._counter = 0
 
 
 class AdversarialWorld(World):
@@ -155,9 +163,9 @@ class AdversarialWorld(World):
         elif self._strategy == "rwma":
             # w = counts / np.sum(counts)
             # choice = np.random.multinomial(1, w)
-            choice = np.random.multinomial(1, expert_weights)
-            index = np.where(choice == 1)[0][0]
-            return self._labels[index]
+            w = expert_weights / np.sum(expert_weights)
+            index = np.argmin(w)
+            return expert_advice[index]
 
     # Member setters
     def set_strategy(self, strategy: str):

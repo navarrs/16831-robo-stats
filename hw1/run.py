@@ -1,27 +1,37 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from wma import WeightedMajorityAlgorithm
 from rwma import RandomizedWeightedMajorityAlgorithm
 
-from world import (
+from environment import (
     StochasticWorld, DeterministicWorld, AdversarialWorld,
     OddLoseExpert, OptimisticExpert, NegativeExpert
 )
 
 SUPPORTED_WORLDS = ["stochastic", "deterministic", "adversarial"]
 SUPPORTED_ALGORITHMS = ["wma", "rwma"]
-
+if not os.path.exists("out"):
+    os.makedirs("out")
 
 def plot(x, y1, y1_label, y2=None, y2_label=None, 
          out_file="out.png", title = 'plot', x_axis = 'x', y_axis = 'y'):
-    colors = ['red', 'green', 'blue', 'cyan']
-    
+    colors  = ['salmon', 'limegreen', 'royalblue', 'mediumpurple']
+    icolors = ['red', 'green', 'blue', 'purple']
+
     for n in range(len(y1[1])):
-        plt.plot(x, y1[:, n], color=colors[n], label=y1_label[n])
+        # interpolate to smooth out
+        poly = np.polyfit(x, y1[:, n], 10)
+        poly_y = np.poly1d(poly)(x)
+        plt.plot(x, poly_y, color=icolors[n], linewidth=0.5)
+        plt.plot(x, y1[:, n], color=colors[n], label=y1_label[n], linewidth=3)
     
     if not y2 is None:
         for n in range(len(y2[1])):
+            poly = np.polyfit(x, y2[:, n], 10)
+            poly_y = np.poly1d(poly)(x)
+            plt.plot(x, poly_y, color=icolors[-1+n], linewidth=0.5)
             plt.plot(x, y2[:, n], color=colors[-1+n], label=y2_label[n])
     
     plt.xlabel(x_axis)
@@ -32,7 +42,7 @@ def plot(x, y1, y1_label, y2=None, y2_label=None,
     plt.savefig(out_file)
     print(f"Saved to file {out_file}")
     plt.show()
-    
+    plt.close()
     
 def run(args):
     # Hypothesis
@@ -48,18 +58,19 @@ def run(args):
         print("*"*5, f"expert: {h.get_name()}")
     
     if args.world == "stochastic":
-        world = StochasticWorld(args.world, labels=[-1, 1])
+        world = StochasticWorld(args.world)
     elif args.world == "deterministic":
         world = DeterministicWorld(args.world)
+        world.set_counter()
     elif args.world == "adversarial":
-        world = AdversarialWorld(args.world, strategy=args.algo)
+        world = AdversarialWorld(args.world)
+        world.set_strategy(args.algo)
     
     if args.algo == "wma":
         algo = WeightedMajorityAlgorithm(H, world, args.T, args.eta)
     else:
         algo = RandomizedWeightedMajorityAlgorithm(H, world, args.T, args.eta)
     print(f"Initialized algorithm: {args.algo}")
-    
     
     print(f"Start...")
     algo.run()
@@ -97,7 +108,7 @@ if __name__ == "__main__":
                         help='algorithm: [wma, rwma]')
     parser.add_argument('--T', type=int, default=100, 
                         help='time steps')
-    parser.add_argument('--eta', type=float, default=0.1, 
+    parser.add_argument('--eta', type=float, default=0.5, 
                         help='penalty value')
     parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()

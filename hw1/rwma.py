@@ -1,12 +1,13 @@
 # ------------------------------------------------------------------------------
 # @file: rwma.py
 # @date: Feb 17, 2021
-# @brief: Implementation of the Randomized Weighted Majority Algorithm
 # @author: ingridn
+#
+# @brief: Implementation of the Randomized Weighted Majority Algorithm
 # ------------------------------------------------------------------------------
 import numpy as np
 
-from world import (
+from environment import (
     Prediction,
     StochasticWorld,
     OddLoseExpert,
@@ -19,29 +20,26 @@ np.set_printoptions(4)
 
 
 class RandomizedWeightedMajorityAlgorithm(WeightedMajorityAlgorithm):
-    """
-    Since the class is similar to WMA it inherits from the class to avoid 
+    """ Since the class is similar to WMA it inherits from the class to avoid 
     repeating code.
     """
-    def pred_function(self, value: float = None) -> int:
-        """
-        Prediction rule. In the case of the Randomized Weighted Majority 
-        Algorithm it computes a multinomial. 
+    def pred_function(self) -> int:
+        """ Prediction rule. In the case of the Randomized Weighted Majority 
+        Algorithm it randomly predicts based on a multinomial distribution over
+        the weights at the current time step. 
         """
         w = self._weights / np.sum(self._weights)
         expert = np.random.multinomial(1, w)
         return self._x[np.where(expert == 1)]
         
     def run(self):
-        """
-        Runs the algorithm for T time steps. 
-        """
+        """ Runs the algorithm for T time steps. """
         print(f"\tInitial weights: {self._weights}")
         print(f"\tWorld: {self._world.get_name()}")
         for t in range(0, self._T):
-            self.receive_advice(t)
+            self.receive_advice(t) # same as WMA
             self._y_pred = self.pred_function()
-            self._y_true = self.receive_label()
+            self._y_true = self.receive_label() # same as WMA
             incorrect_advice = (self._y_true != self._x).astype(int)
             self._weights = self._weights * (1 - self._eta * incorrect_advice)
             self.compute_regret(t)
