@@ -7,18 +7,19 @@ from rwma import RandomizedWeightedMajorityAlgorithm
 
 from environment import (
     StochasticWorld, DeterministicWorld, AdversarialWorld,
-    OddLoseExpert, OptimisticExpert, NegativeExpert
+    OddLoseExpert, OptimisticExpert, NegativeExpert,
+    WeatherExpert, GameExpert, WinStreakExpert
 )
 
 SUPPORTED_WORLDS = ["stochastic", "deterministic", "adversarial"]
 SUPPORTED_ALGORITHMS = ["wma", "rwma"]
-if not os.path.exists("out"):
-    os.makedirs("out")
 
 def plot(x, y1, y1_label, y2=None, y2_label=None, 
          out_file="out.png", title = 'plot', x_axis = 'x', y_axis = 'y'):
-    colors  = ['salmon', 'limegreen', 'royalblue', 'mediumpurple']
-    icolors = ['red', 'green', 'blue', 'purple']
+    colors  = ['salmon', 'limegreen', 'royalblue', 'mediumpurple', 'orchid', 
+               'sandybrown', 'dimgrey']
+    icolors = ['red', 'green', 'blue', 'purple', 'fuchsia', 'saddlebrown', 
+               'black']
 
     for n in range(len(y1[1])):
         # interpolate to smooth out
@@ -32,7 +33,7 @@ def plot(x, y1, y1_label, y2=None, y2_label=None,
             poly = np.polyfit(x, y2[:, n], 10)
             poly_y = np.poly1d(poly)(x)
             plt.plot(x, poly_y, color=icolors[-1+n], linewidth=0.5)
-            plt.plot(x, y2[:, n], color=colors[-1+n], label=y2_label[n])
+            plt.plot(x, y2[:, n], color=colors[-1+n], label=y2_label[n], linewidth=3)
     
     plt.xlabel(x_axis)
     plt.ylabel(y_axis)
@@ -45,11 +46,17 @@ def plot(x, y1, y1_label, y2=None, y2_label=None,
     plt.close()
     
 def run(args):
+    if not os.path.exists(args.dir):
+        os.makedirs(args.dir)
+    
     # Hypothesis
     H = [
         OptimisticExpert("optimistic"), 
         NegativeExpert("negative"), 
-        OddLoseExpert("odd")
+        OddLoseExpert("odd"),
+        WeatherExpert("weather"),
+        GameExpert("game"),
+        WinStreakExpert("winstreak")
     ]
     print("Hypothesis created with experts:")
     expert_names = []
@@ -85,13 +92,13 @@ def run(args):
         plot(t, 
             y1=expert_losses, y1_label=expert_names, 
             y2=learner_loss, y2_label=["learner"],
-            out_file=f"out/loss_{args.algo}_{args.world}.png",
+            out_file=f"{args.dir}/loss_{args.algo}_{args.world}.png",
             title=f"algo: {args.algo} -- world: {args.world} -- loss vs. time", 
             x_axis='time', y_axis='loss')
         
         plot(t, 
             y1=regret, y1_label=["regret"], 
-            out_file=f"out/regret_{args.algo}_{args.world}.png",
+            out_file=f"{args.dir}/regret_{args.algo}_{args.world}.png",
             title=f"algo: {args.algo} -- world: {args.world} -- regret vs. time", 
             x_axis='time', y_axis='regret')
     
@@ -110,6 +117,7 @@ if __name__ == "__main__":
                         help='time steps')
     parser.add_argument('--eta', type=float, default=0.5, 
                         help='penalty value')
+    parser.add_argument('--dir', type=str, default="out_3-5")
     parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
     

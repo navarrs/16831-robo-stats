@@ -44,7 +44,7 @@ class RandomizedWeightedMajorityAlgorithm(WeightedMajorityAlgorithm):
             self._weights = self._weights * (1 - self._eta * incorrect_advice)
             self.compute_regret(t)
 
-            if t % 10 == 0:
+            if t % self._ckpt_step == 0:
                 print("\t[{}/{}]\n\t\tadvice: {}, y_pred: {}, y_true: {}".format(
                     t, self._T, self._x, self._y_pred, self._y_true))
                 print(f"\t\tweights: {self._weights}")

@@ -19,7 +19,7 @@ np.set_printoptions(4)
 
 class WeightedMajorityAlgorithm(object):
 
-    def __init__(self, H, world, T: int = 10, eta: float = 0.5):
+    def __init__(self, H, world, T: int = 10, eta: float = 0.5, ckpt_step: int = 5):
         """ Initializes the WMA.
         Args
             H: hypothesis class
@@ -32,6 +32,7 @@ class WeightedMajorityAlgorithm(object):
         self._T = T
         self._eta = eta
         self._world = world
+        self._ckpt_step = 1
         self.build()
 
     def build(self) -> None:
@@ -43,19 +44,19 @@ class WeightedMajorityAlgorithm(object):
         self._experts_loss = np.zeros(
             shape=(self._T, self._num_experts), dtype=np.float32)
 
-    def receive_advice(self, num_step: int) -> None:
+    def receive_advice(self, num_step: int, observations: dict) -> None:
         """ Receives the advice from all the experts
         Args
             num_step: current time step.
         """
         for n in range(self._num_experts):
-            self._x[n] = self._H[n].give_advice(num_step)
+            self._x[n] = self._H[n].give_advice(num_step, observations)
 
     def receive_label(self) -> int:
         """ Receives true label from the world. """
         # note: if using stochastic, neither the expert advice nor the weights
         # are used by the world.
-        return self._world.give_label(self._x, self._weights)
+        return self._world.step(self._x, self._weights)
 
     def pred_function(self) -> int:
         """ Prediction rule. In the case of the Weighted Majority algorithm it 
@@ -84,16 +85,18 @@ class WeightedMajorityAlgorithm(object):
         print(f"\tInitial weights: {self._weights}")
         print(f"\tWorld: {self._world.get_name()}")
         for t in range(0, self._T):
-            self.receive_advice(t)
+            self._y_true, obs = self.receive_label()
+            self.receive_advice(t, obs)
             self._y_pred = self.pred_function()
-            self._y_true = self.receive_label()
             incorrect_advice = (self._y_true != self._x).astype(int)
             self._weights = self._weights * (1 - self._eta * incorrect_advice)
             self.compute_regret(t)
                         
-            if t % 5 == 0:
-                print("\t[{}/{}]\n\t\tadvice: {}, y_pred: {}, y_true: {}".format(
-                    t, self._T, self._x, self._y_pred, self._y_true))
+            if (t+1) % self._ckpt_step == 0:
+                print(f"\t[{t+1}/{self._T}]")
+                print("\t\tworld: weather: {} game: {} win streak: {} label: {}".format(
+                    obs["weather"], obs["game"], obs["win_streak"], self._y_true))
+                print(f"\t\tadvice: {self._x}, y_pred: {self._y_pred}")
                 print(f"\t\tincorrect advice: {incorrect_advice}")
                 print(f"\t\tweights: {self._weights}")
                 print(f"\t\tlearner_loss: {self._learner_loss[t]}")
