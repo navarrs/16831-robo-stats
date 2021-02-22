@@ -32,7 +32,7 @@ class WeightedMajorityAlgorithm(object):
         self._T = T
         self._eta = eta
         self._world = world
-        self._ckpt_step = 1
+        self._ckpt_step = 5
         self.build()
 
     def build(self) -> None:
@@ -51,11 +51,12 @@ class WeightedMajorityAlgorithm(object):
         """
         for n in range(self._num_experts):
             self._x[n] = self._H[n].give_advice(num_step, observations)
+            
+    def receive_observations(self):
+        return self._world.generate_observations()
 
-    def receive_label(self) -> int:
+    def receive_label(self):
         """ Receives true label from the world. """
-        # note: if using stochastic, neither the expert advice nor the weights
-        # are used by the world.
         return self._world.step(self._x, self._weights)
 
     def pred_function(self) -> int:
@@ -63,6 +64,7 @@ class WeightedMajorityAlgorithm(object):
         is based on the sign(x dot weights). 
         """
         value = np.dot(self._x, self._weights)
+        # print(value)
         if value >= 0.0:
             return Prediction.WIN.value
         return Prediction.LOSE.value
@@ -82,12 +84,14 @@ class WeightedMajorityAlgorithm(object):
 
     def run(self):
         """ Runs the algorithm for T time steps. """
-        print(f"\tInitial weights: {self._weights}")
-        print(f"\tWorld: {self._world.get_name()}")
+        print(f"\tinitial weights: {self._weights}")
+        print(f"\tworld: {self._world.get_name()}")
+        obs = None
         for t in range(0, self._T):
-            self._y_true, obs = self.receive_label()
+            obs = self.receive_observations()
             self.receive_advice(t, obs)
             self._y_pred = self.pred_function()
+            self._y_true = self.receive_label()
             incorrect_advice = (self._y_true != self._x).astype(int)
             self._weights = self._weights * (1 - self._eta * incorrect_advice)
             self.compute_regret(t)

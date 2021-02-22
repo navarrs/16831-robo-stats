@@ -46,44 +46,50 @@ def plot(x, y1, y1_label, y2=None, y2_label=None,
     plt.close()
     
 def run(args):
-    if not os.path.exists(args.dir):
-        os.makedirs(args.dir)
-    
     # Hypothesis
     H = [
         OptimisticExpert("optimistic"), 
         NegativeExpert("negative"), 
-        OddLoseExpert("odd"),
-        WeatherExpert("weather"),
-        GameExpert("game"),
-        WinStreakExpert("winstreak")
+        OddLoseExpert("odd")
     ]
-    print("Hypothesis created with experts:")
+    # If we use observations, then add the observation-based experts
+    if args.use_observations:
+        H.append(WeatherExpert("weather"))
+        H.append(GameExpert("game"))
+        H.append(WinStreakExpert("winstreak"))
+    
+    print("hypothesis created with experts:")
     expert_names = []
     for h in H:
         expert_names.append(h.get_name())
-        print("*"*5, f"expert: {h.get_name()}")
+        print("-"*5, f"expert: {h.get_name()}")
+    print(f"using world observations: {args.use_observations}")
     
     if args.world == "stochastic":
-        world = StochasticWorld(args.world)
+        world = StochasticWorld(args.world, args.use_observations)
     elif args.world == "deterministic":
-        world = DeterministicWorld(args.world)
+        world = DeterministicWorld(args.world, args.use_observations)
         world.set_counter()
     elif args.world == "adversarial":
-        world = AdversarialWorld(args.world)
+        world = AdversarialWorld(args.world, args.use_observations)
         world.set_strategy(args.algo)
     
     if args.algo == "wma":
         algo = WeightedMajorityAlgorithm(H, world, args.T, args.eta)
     else:
         algo = RandomizedWeightedMajorityAlgorithm(H, world, args.T, args.eta)
-    print(f"Initialized algorithm: {args.algo}")
     
-    print(f"Start...")
+    print(f"initialized algorithm: {args.algo}")
+    
+    print(f"start...")
     algo.run()
     
     if args.plot:
-        print(f"Plotting...")
+        out_dir = f"out_{args.algo}_obs_{args.use_observations}"
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        
+        print(f"plotting...")
         t = np.arange(args.T)
         expert_losses = algo.get_experts_loss()
         learner_loss = algo.get_learners_loss()
@@ -92,13 +98,13 @@ def run(args):
         plot(t, 
             y1=expert_losses, y1_label=expert_names, 
             y2=learner_loss, y2_label=["learner"],
-            out_file=f"{args.dir}/loss_{args.algo}_{args.world}.png",
+            out_file=f"{out_dir}/loss_{args.world}.png",
             title=f"algo: {args.algo} -- world: {args.world} -- loss vs. time", 
             x_axis='time', y_axis='loss')
         
         plot(t, 
             y1=regret, y1_label=["regret"], 
-            out_file=f"{args.dir}/regret_{args.algo}_{args.world}.png",
+            out_file=f"{out_dir}/regret_{args.world}.png",
             title=f"algo: {args.algo} -- world: {args.world} -- regret vs. time", 
             x_axis='time', y_axis='regret')
     
@@ -117,7 +123,7 @@ if __name__ == "__main__":
                         help='time steps')
     parser.add_argument('--eta', type=float, default=0.5, 
                         help='penalty value')
-    parser.add_argument('--dir', type=str, default="out_3-5")
+    parser.add_argument('--use_observations', action='store_true')
     parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
     

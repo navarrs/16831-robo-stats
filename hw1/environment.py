@@ -69,7 +69,7 @@ class OptimisticExpert(Expert):
 
 
 class NegativeExpert(Expert):
-    """ Negative expert: it always predicts LOSE """
+    """ Negative expert: it always predicts LOSE. """
 
     def give_advice(self, num_game: int, observations: dict = None) -> int:
         return self._predictions.LOSE.value
@@ -88,6 +88,9 @@ class WeatherExpert(Expert):
     """ Weather expert: predicts WIN when the weather is sunny. """
 
     def give_advice(self, num_game: int, observations: dict = None) -> int:
+        if observations is None:
+            return Prediction.LOSE.value
+        
         if "weather" in observations:
             weather = observations["weather"]
             if weather == Weather.SUNNY:
@@ -99,6 +102,9 @@ class GameExpert(Expert):
     """ Game expert: predicts WIN if home game. """
 
     def give_advice(self, num_game: int, observations: dict = None) -> int:
+        if observations is None:
+            return Prediction.LOSE.value
+        
         if "game" in observations:
             game = observations["game"]
             if game == Game.HOME:
@@ -110,6 +116,9 @@ class WinStreakExpert(Expert):
     """ Win Streak expert: predicts WIN based on consecutive wins. """
 
     def give_advice(self, num_game: int, observations: dict = None) -> int:
+        if observations is None:
+            return Prediction.LOSE.value
+        
         if "win_streak" in observations:
             win_streaks = observations["win_streak"]
             if win_streaks > 2:
@@ -123,18 +132,25 @@ class WinStreakExpert(Expert):
 class World():
     """ Base class to implement world. """
 
-    def __init__(self, name: str, labels: List[int] = [-1, 1]):
+    def __init__(self,
+                 name: str,
+                 use_observations: bool = False
+                 ):
         """ Initializes the world.
         Args:
             name: name of the world.
+            use_observations: enables to produce environment observations
             labels: labels that the world can produce.
         """
         self._name = name
-        self._labels = labels
+        self._use_observations = use_observations
+
+        self._label_list = list(map(int, Prediction))
         self._weather_list = list(map(int, Weather))
         self._game_list = list(map(int, Game))
+
         self._win_streaks = 0
-        self._label = -1
+        self._current_label = -1
         self._observations = {
             "weather": 0, "game": 0, "win_streak": 0
         }
@@ -143,6 +159,8 @@ class World():
         """ Generates observations for the current state. """
         self._observations["weather"] = np.random.choice(self._weather_list)
         self._observations["game"] = np.random.choice(self._game_list)
+        return self._observations
+            
 
     def step(self,
              expert_advice: np.array = None,
@@ -164,19 +182,20 @@ class StochasticWorld(World):
     """ Stochastic world: always chooses a random label. It does not use expert
         advice. 
     """
-
+    
     def step(self,
              expert_advice: np.array = None,
              expert_weights: np.array = None
              ) -> Tuple[int, dict]:
-        self.generate_observations()
-        self._label = random.choice(self._labels)
-        if self._label == Prediction.LOSE.value:
+
+        self._label = random.choice(self._label_list)
+        if self._label == Prediction.LOSE:
             self._win_streaks = 0
         else:
             self._win_streaks += 1
+
         self._observations["win_streak"] = self._win_streaks
-        return self._label, self._observations
+        return self._label
 
 
 class DeterministicWorld(World):
@@ -190,36 +209,45 @@ class DeterministicWorld(World):
              expert_weights: np.array = None
              ) -> Tuple[int, dict]:
         """ Uses a deterministic rule to produce a label. """
-        self.generate_observations()
-        self._label = self.rule()
-        # self._label = self.rule_counter()
 
-        if self._label == Prediction.LOSE.value:
+        # Deterministic output if not using observations
+        if not self._use_observations:
+            self._label = self.rule_counter()
+            return self._label.value
+
+        # Deterministic output if using obsercations
+        self._label = self.observations_rule()
+        
+        if self._label == Prediction.LOSE:
             self._win_streaks = 0
         else:
             self._win_streaks += 1
-
         self._observations["win_streak"] = self._win_streaks
-        return self._label, self._observations
 
-    def rule(self) -> int:
+        return self._label.value
+
+    def observations_rule(self) -> int:
         """ Produces label based on observations """
         weather = self._observations["weather"]
         game = self._observations["game"]
         win_streak = self._observations["win_streak"]
+        
         # Since this world is deterministic, rules are simple if-elses
         if weather == Weather.RAINY.value:
-            if win_streak > 2 and game == Game.HOME.value:
-                return Prediction.WIN.value
-            return Prediction.LOSE.value
-        else:
-            if win_streak < 2 and game == Game.AWAY.value:
+            if win_streak < 3:
                 return Prediction.LOSE
-        return Prediction.WIN.value
+            
+            if game == Game.HOME.value:
+                return Prediction.WIN
+        else:
+            if game == Game.AWAY.value:
+                return Prediction.LOSE
+            
+        return Prediction.WIN
 
     def rule_counter(self) -> int:
         """ Used in 3.2, 3.3 and 3.4 """
-        label = -1 if self._counter % 4 == 0 else 1
+        label = Prediction.LOSE if self._counter % 4 == 0 else Prediction.WIN
         self._counter += 1
         return label
 
@@ -235,29 +263,82 @@ class AdversarialWorld(World):
     def step(self,
              expert_advice: np.array = None,
              expert_weights: np.array = None
-        ) -> Tuple[int, dict]:
+             ) -> Tuple[int, dict]:
         """ 
         Adversarial predicts a label based on the expert advice, expert weights
         and prediction rule. For WMA it produces the opposite label to that of 
         the majority of the experts. For RWMA it produces a label based on the 
         current weights of the experts. 
         """
+        if not self._use_observations:
+            self._label = self.simple_rule(expert_advice, expert_weights)
+            return self._label.value
+
+        self._label = self.observations_rule(expert_advice, expert_weights)
+        
+        if self._label == Prediction.LOSE:
+            self._win_streaks = 0
+        else:
+            self._win_streaks += 1
+        self._observations["win_streak"] = self._win_streaks
+
+        return self._label.value
+
+    def observations_rule(self,
+                          expert_advice: np.array = None,
+                          expert_weights: np.array = None
+                          ) -> Tuple[int, dict]:
+        """
+        Observation-based adversarial rule used in 3.5 that uses experts, 
+        weights and environment observations.  
+        """
+        weather = self._observations["weather"]
+        game = self._observations["game"]
+        win_streak = self._observations["win_streak"]
+
+        # Get the opposite label to occur (opposite to deterministic)
+        opposite_label = Prediction.LOSE
+        if weather == Weather.RAINY.value:
+            if win_streak < 4 and game == Game.AWAY.value:
+                opposite_label = Prediction.WIN
+        else:
+            if win_streak < 2 and game == Game.AWAY.value:
+                opposite_label = Prediction.WIN
+
+        # Get the label that the experts would predict
+        vote = np.dot(expert_advice, expert_weights)
+        expert_label = Prediction.WIN if vote > 0 else Prediction.LOSE
+
+        # Check if the labels disagree - if so, return the oppsite label
+        if expert_label != opposite_label:
+            return opposite_label
+        # otherwise return the opposite of both
+        # print(expert_label, opposite_label)
+        return Prediction.LOSE if expert_label == Prediction.WIN else Prediction.WIN
+
+    def simple_rule(self,
+                    expert_advice: np.array = None,
+                    expert_weights: np.array = None
+                    ) -> Tuple[int, dict]:
+        """
+        Simple adversarial rule used in 3.3 and 3.4 that predicts a label based 
+        on the expert advice, expert weights and prediction rule. For WMA it 
+        produces the opposite label to that of the majority of the experts. 
+        For RWMA it produces a label based on the current weights of the experts. 
+        """
+        vote = np.dot(expert_advice, expert_weights)
         if self._strategy == "wma":
             # values, counts = np.unique(expert_advice, return_counts=True)
             # index = np.argmax(counts)
             # return -1 if values[index] == 1 else 1
-            self._label = -1 if np.dot(expert_advice,
-                                       expert_weights) > 0 else 1
+            return Prediction.LOSE if vote > 0 else Prediction.WIN
         elif self._strategy == "rwma":
             # w = counts / np.sum(counts)
             # choice = np.random.multinomial(1, w)
             # w = expert_weights / np.sum(expert_weights)
             # index = np.argmin(w)
             # return expert_advice[index]
-            self._label = -1 if np.dot(expert_advice,
-                                       expert_weights) > 0 else 1
-        observations = self.generate_observations()
-        return self._label, observations
+            return Prediction.LOSE if vote > 0 else Prediction.WIN
 
     # Member setters
     def set_strategy(self, strategy: str):

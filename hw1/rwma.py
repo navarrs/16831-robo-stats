@@ -34,12 +34,13 @@ class RandomizedWeightedMajorityAlgorithm(WeightedMajorityAlgorithm):
         
     def run(self):
         """ Runs the algorithm for T time steps. """
-        print(f"\tInitial weights: {self._weights}")
-        print(f"\tWorld: {self._world.get_name()}")
-        for t in range(0, self._T):
-            self.receive_advice(t) # same as WMA
+        print(f"\tinitial weights: {self._weights}")
+        print(f"\tworld: {self._world.get_name()}")
+        for t in range(0, self._T):        
+            obs = self.receive_observations()
+            self.receive_advice(t, obs)
             self._y_pred = self.pred_function()
-            self._y_true = self.receive_label() # same as WMA
+            self._y_true = self.receive_label()
             incorrect_advice = (self._y_true != self._x).astype(int)
             self._weights = self._weights * (1 - self._eta * incorrect_advice)
             self.compute_regret(t)
