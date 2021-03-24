@@ -67,20 +67,39 @@ class policyGWM(Policy):
 class policyEXP3(Policy):
     def init(self, nbActions):
         self.nbActions = nbActions
-
+        self.w = np.ones(shape=self.nbActions, dtype=np.float)
+        self.t = 0
+        
     def decision(self):
-        return 0
+        self.pn = self.w / np.sum(self.w)
+        self.chosenAction = np.where(np.random.multinomial(1, self.pn) == 1)[0]
+        return self.chosenAction
 
     def getReward(self, reward):
-        pass
+        loss = 1 - reward
+        loss_v = np.zeros(shape=self.nbActions, dtype=np.float)
+        loss_v[self.chosenAction] = loss / self.pn[self.chosenAction]
+        
+        self.t += 1
+        eta = np.sqrt(np.log(self.nbActions) / (self.t * self.nbActions))
+        self.w = self.w * np.exp(-eta * loss_v)
 
 
 class policyUCB(Policy):
     def init(self, nbActions):
         self.nbActions = nbActions
-
+        self.alpha = 1.0
+        self.t = 1
+        
+        self.S = np.zeros(shape=self.nbActions, dtype=np.float)
+        self.C = np.ones(shape=self.nbActions, dtype=np.float)
+        
     def decision(self):
-        return 0
+        v = self.S / self.C + np.sqrt(self.alpha*np.log(self.t)/(2*self.C))
+        self.chosenAction = np.argmax(v)
+        
+        return self.chosenAction
 
     def getReward(self, reward):
-        pass
+        self.S[self.chosenAction] += reward
+        self.C[self.chosenAction] += 1

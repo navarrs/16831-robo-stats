@@ -19,7 +19,7 @@ class Game:
         for t in range(self.totalRounds):
             action[t] = policy.decision()
             reward[t] = self.reward(action[t])
-            regret[t] = self.cumulativeRewardBestActionHindsight(t) - sum(reward)
+            regret[t] = self.cumulativeRewardBestActionHindsight() - sum(reward)
             policy.getReward(reward[t])
             self.N += 1
             
@@ -31,9 +31,8 @@ class Game:
     def resetGame(self):
         self.N = 0
 
-    def cumulativeRewardBestActionHindsight(self, t):
-        # cumulative_reward = np.sum(self.tabR[:, :t], axis=1)
-        cumulative_reward = np.sum(self.tabR, axis=1)
+    def cumulativeRewardBestActionHindsight(self):
+        cumulative_reward = np.sum(self.tabR[:, :self.N], axis=1)
         i = np.argmax(cumulative_reward)
         return cumulative_reward[i]
 
@@ -43,11 +42,11 @@ class gameConstant(Game):
     DO NOT MODIFY
     """
 
-    def __init__(self):
+    def __init__(self, totalRound=1000):
         super().__init__()
         self.nbActions = 2
-        self.totalRounds = 1000
-        self.tabR = np.ones((2, 1000))
+        self.totalRounds = totalRound
+        self.tabR = np.ones((self.nbActions, self.totalRounds))
         self.tabR[0] *= 0.8
         self.tabR[1] *= 0.2
         self.N = 0
@@ -59,13 +58,22 @@ class gameGaussian(Game):
         self.nbActions = nbActions
         self.totalRounds = totalRound
         self.N = 0
+        
+        self.mu = np.random.uniform(low=0.0, high=1.0, size=self.nbActions)
+        self.sigma = np.random.uniform(low=0.0, high=1.0, size=self.nbActions)
+        
+        self.tabR = np.ones((self.nbActions, self.totalRounds))
+        for i in range(self.totalRounds):
+            g = np.random.normal(self.mu, self.sigma, size=self.nbActions)
+            g = np.clip(g, 0.0, 1.0)
+            self.tabR[:, i] = g
 
 
 class gameAdverserial(Game):
     def __init__(self):
         super().__init__()
         self.nbActions = 2
-        self.totalRounds = 1000
+        self.totalRounds = 10000
         self.N = 0
 
 
