@@ -128,26 +128,32 @@ def plot(game, policies, plot_confidence=False):
 # plot(game, policies)
 
 #### ---------------------------------------------------------------------- ####
-#### q6.1
+#### q6.1 - q6.2
 tuniv = scipy.io.loadmat("../data/univLatencies.mat")['univ_latencies']
 n1, t1 = tuniv.shape
 tplan = scipy.io.loadmat("../data/plannerPerformance.mat")['planner_performance']
 n2, t2 = tplan.shape
-table = np.ones(shape=(n1 + n2, t1 + t2 + 1), dtype=np.float)
 
-table[:n1, 0] = 0.0
-table[n1:, 0] = 1.0
+states = np.ones(shape=(t1+t2), dtype=np.int)
+states[:t1] = 0
 
-table[:n1, 1:t1+1] = tuniv
-table[n1:, t1+1:] = tplan
+table = np.ones(shape=(n1 + n2, t1 + t2), dtype=np.float)
+table[:n1, :t1] = tuniv
+table[n1:, t1:] = tplan
+
+states = states.T
+table = table.T
 
 nranges = [[0, n1], [n1, -1]]
 
+rng_state = np.random.get_state()
 np.random.shuffle(table)
+np.random.set_state(rng_state)
+np.random.shuffle(states)
 
-states = table[:, 0]
-table = table[:, 1:]
+states = states.T
+table = table.T
 
-policies = [policyUCBContext(), policyUCB()]
+policies = [policyUCB(), policyUCBContext()]
 game = gameLookupTable(table, isLoss=True, states=states, nranges=nranges)
 plot(game, policies)

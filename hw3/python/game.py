@@ -139,7 +139,7 @@ class gameLookupTable(Game):
             policy.init(self.nbActions, self.nranges)
         else:
             policy.init(self.nbActions)
-            
+          
         reward = np.zeros(self.totalRounds)
         action = np.zeros(self.totalRounds, dtype=np.int)
         regret = np.zeros(self.totalRounds)
@@ -153,4 +153,6 @@ class gameLookupTable(Game):
             regret[t] = self.cumulativeRewardBestActionHindsight() - sum(reward)
             policy.getReward(reward[t])
             self.N += 1
+
+        return reward, action, regret
             
