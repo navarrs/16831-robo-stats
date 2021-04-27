@@ -92,29 +92,42 @@ def policy_from_value_function(env, value_function, gamma):
     """
     A = env.nA
     S = env.nS
-    
-    def Qat(s, a):
-      cs, r, done, P = env.step(a)
-      T = env.generateTransitionMatrices()
-      v = 0.0
-      for ns in range(s, S):
-        v += T[s, a, ns] * (r + gamma * value_function[ns])
-      return v
-      
+    P = env.P
     policy = np.zeros(shape=(S, 1), dtype=np.float32)
     
+    # def Qat(s, a):
+    #   cs, r, done, P = env.step(a)
+    #   T = env.generateTransitionMatrices()
+    #   v = 0.0
+    #   for ns in range(s, S):
+    #     v += T[s, a, ns] * (r + gamma * value_function[ns])
+    #   return v
+      
+    
+    # for s in range(S):
+    #   q = np.zeros(shape=(4, 1), dtype=np.float32)
+    #   for a in range(A):
+    #     q[a] = Qat(s, a)
+    #   policy[s] = np.argmax(q)
+    
     for s in range(S):
-      q = np.zeros(shape=(4, 1), dtype=np.float32)
-      
+      max_va = np.iinfo(np.int).min
+      max_ac = policy[s]
       for a in range(A):
-        q[a] = Qat(s, a)
+        transition = P[s][a]
+        v = 0.0
+        for p, ns, r, done in transition:
+          v += p * (r + gamma * value_function[ns]) 
         
-      policy[s] = np.argmax(q)
-      
+        if max_va < v:  
+          max_va = v
+          max_ac = a
+          
+      policy[s] = max_ac
     return policy
 
 
-def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
+def policy_iteration(env, gamma, max_iterations=int(1e4), tol=1e-3):
   """
     Q3.2.2: BONUS
     This implements policy iteration for learning a policy given an environment.
@@ -203,7 +216,7 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
   policy_stable = False
   n_iter = 0
   while not policy_stable and n_iter < max_iterations:
-    if n_iter % 50 == 0:
+    if n_iter % 500 == 0:
       print(f"** step: [{n_iter}/{max_iterations}]")
       
     V = evaluate_policy()
@@ -214,8 +227,8 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
   return V, n_iter
 
 
-def td_zero(env, gamma, policy, alpha):
-    """
+def td_zero(env, gamma, policy, alpha, neps=int(1e4)):
+  """
     Q3.2.2
     This implements TD(0) for calculating the value function given a policy.
 
@@ -234,14 +247,36 @@ def td_zero(env, gamma, policy, alpha):
     Output:
       numpy.ndarray
       value_function:  Policy value function
-    """
+  """
+  S = env.nS
+  V = np.random.rand(S)
+    
+  # for each episode
+  for e in range(neps):
+      
+    # initialize S
+    state = env.reset()
+      
+    # for each step on episode
+    done = False 
+    while not done:
+      # get action given by policy
+      action = int(policy[state][0])
+      # take action, observe reward and next state
+      next_state, reward, done, _ = env.step(action)
+      # update value 
+      V[state] += alpha * (reward + gamma * V[next_state] - V[state])
+      # update state
+      state = next_state
+        
+    if e % 100 == 0:
+      print(f"num episodes: {e}/{neps}")
+        
+  return V
 
-    ## YOUR CODE HERE ##
-    raise NotImplementedError()
 
-
-def n_step_td(env, gamma, policy, alpha, n):
-    """
+def n_step_td(env, gamma, policy, alpha, n, neps=int(1e3)):
+  """
     Q3.2.4: BONUS
     This implements n-step TD for calculating the value function given a policy.
 
@@ -262,13 +297,49 @@ def n_step_td(env, gamma, policy, alpha, n):
     Output:
       numpy.ndarray
       value_function:  Policy value function
-    """
+  """
+  V = np.random.rand(env.nS)
+  
+  # for each episode
+  for e in range(neps):
+    # initialize S
+    T = np.iinfo(np.int).max
+    state = env.reset()
+    S = [state]
+    R = [0]
+    
+    t, tau = 0, 0
+    while tau < T - 1:
+      if t < T:
+        # take action given by policy
+        action = int(policy[S[t]][0])
+        # observe and store next reward as and next state
+        next_state, reward, done, _ = env.step(action)
+        R.append(reward)
+        S.append(next_state)
+        # if next state is terminal 
+        if done:
+          T = t + 1
+      
+      # tau - time whose state's estimate is being updated
+      tau = t - n + 1
+      if tau >= 0:
+        h = np.minimum(tau+n, T)
+        l = tau + 1
+        G = 0.0
+        for i in range(l, h):
+          G += gamma**(i-tau-1) * R[i]
+          if tau + n < T:
+            G += gamma**n * V[S[tau+n]]
+          V[S[tau]] += alpha * (G - V[S[tau]])
+        
+      t += 1
+    if e % 100 == 0:
+      print(f"num episodes: {e}/{neps}")
+    
+  return V
 
-    ## BONUS QUESTION ##
-    ## YOUR CODE HERE ##
-    raise NotImplementedError()
-
-def plot(X, title, text=None, dec=4):
+def plot(X, title, text=None, dec=2):
   ax = plt.gca()
   im = ax.imshow(X)
   cbar = ax.figure.colorbar(im, ax=ax)
@@ -302,32 +373,30 @@ if __name__ == "__main__":
   # Q3.2.1
   print(f"\n** q3.2.1 value iteration")
   V_vi, n_iter = value_iteration(env, gamma)
-  plot(V_vi.reshape(gw, gh), 
-       title='value_iteration')
-  print(f"value iteration converged after {n_iter} steps")
+  # plot(V_vi.reshape(gw, gh), title='value_iteration')
+  # print(f"value iteration converged after {n_iter} steps")
   policy = policy_from_value_function(env, V_vi, gamma)
-  plot(policy.reshape(gw, gh), 
-       title='policy_from_value_iteration', 
-       text=action_names)
+  # plot(policy.reshape(gw, gh), title='policy_from_value_iteration', text=action_names)
 
 
   # Q3.2.2: BONUS
-  print(f"\n** q3.2.2 policy iteration")
-  V_pi, n_iter = policy_iteration(env, gamma)
-  plot(V_pi.reshape(gw, gh), 
-       title='policy_iteration')
-  policy = policy_from_value_function(env, V_pi, gamma)
-  plot(policy.reshape(gw, gh), 
-       title='policy_from_policy_iteration', 
-       text=action_names)
-  
+  # print(f"\n** q3.2.2 policy iteration")
+  # V_pi, n_iter = policy_iteration(env, gamma)
   # print(f"policy iteration converged after {n_iter} steps")
-  # plot(policy.reshape(gw, gh), 
-  #      title='policy_from_value_iteration', 
-  #      text=action_names)
+  # plot(V_pi.reshape(gw, gh), title='policy_iteration')
+  # ppolicy = policy_from_value_function(env, V_pi, gamma)
+  # plot(ppolicy.reshape(gw, gh), title='policy_from_policy_iteration', text=action_names)
 
   # Q3.2.3
+  # print(f"\n** q3.2.3 TD 0")
   # V_td = td_zero(env, gamma, policy, alpha)
-
+  # plot(V_td.reshape(gw, gh), title='td_zero')
+  
   # Q3.2.4: BONUS
+  print(f"\n** q3.2.4 TD n")
+  V_ntd = n_step_td(env, gamma, policy, alpha, n)
+  plot(V_ntd.reshape(gw, gh), title=f'td_{n}')
+  
+  # n = 1
   # V_ntd = n_step_td(env, gamma, policy, alpha, n)
+  # plot(V_ntd.reshape(gw, gh), title=f'td_{n}')
