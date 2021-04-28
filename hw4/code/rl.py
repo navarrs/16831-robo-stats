@@ -250,6 +250,7 @@ def td_zero(env, gamma, policy, alpha, neps=int(1e4)):
   """
   S = env.nS
   V = np.random.rand(S)
+  V[-1] = 0.0
     
   # for each episode
   for e in range(neps):
@@ -269,13 +270,12 @@ def td_zero(env, gamma, policy, alpha, neps=int(1e4)):
       # update state
       state = next_state
         
-    if e % 100 == 0:
+    if e % 1000 == 0:
       print(f"num episodes: {e}/{neps}")
         
   return V
 
-
-def n_step_td(env, gamma, policy, alpha, n, neps=int(1e3)):
+def n_step_td(env, gamma, policy, alpha, n, neps=int(1e4)):
   """
     Q3.2.4: BONUS
     This implements n-step TD for calculating the value function given a policy.
@@ -304,12 +304,11 @@ def n_step_td(env, gamma, policy, alpha, n, neps=int(1e3)):
   for e in range(neps):
     # initialize S
     T = np.iinfo(np.int).max
-    state = env.reset()
-    S = [state]
+    S = [env.reset()]
     R = [0]
     
     t, tau = 0, 0
-    while tau < T - 1:
+    while True:
       if t < T:
         # take action given by policy
         action = int(policy[S[t]][0])
@@ -324,17 +323,23 @@ def n_step_td(env, gamma, policy, alpha, n, neps=int(1e3)):
       # tau - time whose state's estimate is being updated
       tau = t - n + 1
       if tau >= 0:
-        h = np.minimum(tau+n, T)
-        l = tau + 1
         G = 0.0
+        # from Sutton's book
+        h = np.minimum(tau+n, T)
+        l = tau # + 1
         for i in range(l, h):
-          G += gamma**(i-tau-1) * R[i]
-          if tau + n < T:
-            G += gamma**n * V[S[tau+n]]
-          V[S[tau]] += alpha * (G - V[S[tau]])
+          G += gamma**(i-tau) * R[i]
+          # G += (gamma**(i-tau-1)) * R[i]
+        if tau + n < T:
+          G += gamma**n * V[S[tau+n]]
+        V[S[tau]] += alpha * (G - V[S[tau]])
+      
+      if tau == T - 1:
+        break
         
       t += 1
-    if e % 100 == 0:
+    
+    if e % 1000 == 0:
       print(f"num episodes: {e}/{neps}")
     
   return V
@@ -367,36 +372,33 @@ if __name__ == "__main__":
   # Play around with these values if you want!
   gamma = 0.9
   alpha = 0.05
-  n = 10
+  n = 4
   action_names = ['L', 'D', 'R', 'U']
   
   # Q3.2.1
   print(f"\n** q3.2.1 value iteration")
   V_vi, n_iter = value_iteration(env, gamma)
-  # plot(V_vi.reshape(gw, gh), title='value_iteration')
-  # print(f"value iteration converged after {n_iter} steps")
+  plot(V_vi.reshape(gw, gh), title='value_iteration')
+  print(f"value iteration converged after {n_iter} steps")
   policy = policy_from_value_function(env, V_vi, gamma)
-  # plot(policy.reshape(gw, gh), title='policy_from_value_iteration', text=action_names)
-
+  plot(policy.reshape(gw, gh), title='policy_from_value_iteration', text=action_names)
 
   # Q3.2.2: BONUS
-  # print(f"\n** q3.2.2 policy iteration")
-  # V_pi, n_iter = policy_iteration(env, gamma)
-  # print(f"policy iteration converged after {n_iter} steps")
-  # plot(V_pi.reshape(gw, gh), title='policy_iteration')
-  # ppolicy = policy_from_value_function(env, V_pi, gamma)
-  # plot(ppolicy.reshape(gw, gh), title='policy_from_policy_iteration', text=action_names)
+  print(f"\n** q3.2.2 policy iteration")
+  V_pi, n_iter = policy_iteration(env, gamma)
+  print(f"policy iteration converged after {n_iter} steps")
+  plot(V_pi.reshape(gw, gh), title='policy_iteration')
+  ppolicy = policy_from_value_function(env, V_pi, gamma)
+  plot(ppolicy.reshape(gw, gh), title='policy_from_policy_iteration', text=action_names)
 
   # Q3.2.3
-  # print(f"\n** q3.2.3 TD 0")
-  # V_td = td_zero(env, gamma, policy, alpha)
-  # plot(V_td.reshape(gw, gh), title='td_zero')
+  print(f"\n** q3.2.3 TD 0")
+  V_td = td_zero(env, gamma, policy, alpha)
+  plot(V_td.reshape(gw, gh), title='td_zero')
   
   # Q3.2.4: BONUS
   print(f"\n** q3.2.4 TD n")
-  V_ntd = n_step_td(env, gamma, policy, alpha, n)
-  plot(V_ntd.reshape(gw, gh), title=f'td_{n}')
-  
-  # n = 1
-  # V_ntd = n_step_td(env, gamma, policy, alpha, n)
-  # plot(V_ntd.reshape(gw, gh), title=f'td_{n}')
+  for n in range(1, 11):
+    print(f"using n: {n}")
+    V_ntd = n_step_td(env, gamma, policy, alpha, n)
+    plot(V_ntd.reshape(gw, gh), title=f'td_{n}')
