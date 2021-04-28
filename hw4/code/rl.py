@@ -39,13 +39,15 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
   
   def updateV(V, s):
     max_v = np.finfo(np.float32).min
-    
+    # loop over all actions
     for a in range(A):
       v = 0.0
+      # get transitions from current state and action
       # P[state][action] = (prob, state, reward, done)
       transition = P[s][a]
       for p, ns, r, done in transition:
         v += p * (r + gamma * V[ns])   
+      # update if new max value
       max_v = np.maximum(max_v, v)
 
     V[s] = max_v
@@ -58,6 +60,7 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     # loop over all states
     for s in range(S):
       v = V[s]
+      # perform update of value function
       V = updateV(V, s)
       delta = np.maximum(delta, np.abs(v - V[s]))
     
@@ -94,35 +97,24 @@ def policy_from_value_function(env, value_function, gamma):
     S = env.nS
     P = env.P
     policy = np.zeros(shape=(S, 1), dtype=np.float32)
-    
-    # def Qat(s, a):
-    #   cs, r, done, P = env.step(a)
-    #   T = env.generateTransitionMatrices()
-    #   v = 0.0
-    #   for ns in range(s, S):
-    #     v += T[s, a, ns] * (r + gamma * value_function[ns])
-    #   return v
-      
-    
-    # for s in range(S):
-    #   q = np.zeros(shape=(4, 1), dtype=np.float32)
-    #   for a in range(A):
-    #     q[a] = Qat(s, a)
-    #   policy[s] = np.argmax(q)
-    
+
+    # loop over all states
     for s in range(S):
+      # reset max value and action 
       max_va = np.iinfo(np.int).min
       max_ac = policy[s]
+      # loop over all actions
       for a in range(A):
+        # get transitions from current state and action
         transition = P[s][a]
         v = 0.0
         for p, ns, r, done in transition:
           v += p * (r + gamma * value_function[ns]) 
-        
+        # update if new max value 
         if max_va < v:  
           max_va = v
           max_ac = a
-          
+      # keep action that maximized the value for current state
       policy[s] = max_ac
     return policy
 
@@ -158,13 +150,15 @@ def policy_iteration(env, gamma, max_iterations=int(1e4), tol=1e-3):
   
   def updateV(V, s):
     max_v = np.finfo(np.float32).min
-    
+    # loop over all actions
     for a in range(A):
       v = 0.0
+      # get transitions from current state and action
       # P[state][action] = (prob, state, reward, done)
       transition = P[s][a]
       for p, ns, r, done in transition:
         v += p * (r + gamma * V[ns])   
+      # update if new max value
       max_v = np.maximum(max_v, v)
 
     V[s] = max_v
@@ -174,9 +168,9 @@ def policy_iteration(env, gamma, max_iterations=int(1e4), tol=1e-3):
     V = np.random.rand(S)
     n_iter_eval = 0
     delta = np.finfo(np.float32).max
+    # this is the value iteration from above
     while n_iter_eval < max_iterations and delta > tol:
       delta = 0.0
-      
       # loop over all states
       for s in range(S):
         v = V[s]
@@ -188,40 +182,42 @@ def policy_iteration(env, gamma, max_iterations=int(1e4), tol=1e-3):
   
   def improve_policy(V, policy):
     policy_stable = True
-    
+    # loop over all states
     for s in range(S):
       old_action = np.copy(policy[s])
-      
       max_v = np.finfo(np.float32).min
       max_action = old_action
+      # loop over all actions
       for a in range(A):
         v = 0.0
+        # get transitions from current state and action
         # P[state][action] = (prob, state, reward, done)
         transition = P[s][a]
         for p, ns, r, done in transition:
           v += p * (r + gamma * V[ns]) 
-        
+        # update if new max value
         if max_v < v:
           max_v = v 
           max_action = a
-      
+      # choose max action
       policy[s] = max_action
+      # check if policy converges
       if policy[s] == old_action:
         policy_stable = False 
         
     return policy, policy_stable
-  
-  
+
   policy = np.random.randint(0, 4, (S, 1))
   policy_stable = False
   n_iter = 0
   while not policy_stable and n_iter < max_iterations:
     if n_iter % 500 == 0:
       print(f"** step: [{n_iter}/{max_iterations}]")
-      
-    V = evaluate_policy()
-    policy, policy_stable = improve_policy(V, policy)
     
+    # value iteration
+    V = evaluate_policy()
+    # policy improvement
+    policy, policy_stable = improve_policy(V, policy)
     n_iter += 1
     
   return V, n_iter
